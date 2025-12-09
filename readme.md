@@ -1,320 +1,132 @@
-ai 가속기 딥러닝 알고리즘
 
-<img width="865" height="368" alt="image" src="https://github.com/user-attachments/assets/2ae6593a-ef91-483a-9b49-056b236cf8d2" />
+## 1. 프로젝트 개요
 
+AI 가속기(NPU)를 하드웨어로 설계하기 위해서는 내부에서 구동되는  소프트웨어 알고리즘의 
 
-학습률의 경우 일반적으로 너무 큰값이 아닌 0.001을 사용하여 조금씩 증감하여 사용
+동작 원리를 정확히 알아야 한다고 판단했습니다.
 
-가중치와 편향치를 구하기위해 학습을 진행
+먼저 파이썬으로 딥러닝의 기초(순전파, 역전파)를 구현해보며 **데이터의 흐름과 연산 과정**을 직접 확인했습니다. 
 
-에포크 반복학습
+이를 통해 추후 하드웨어 설계 시 필요한 MAC 연산 구조와 메모리 접근 방식에 대한 기초적인 이해를 다지는 것을 목표로 했습니다.
 
-학습 코드 
-```
-x=2
-w=3
-b=1
-yT=10
+---
+
+## 2. 경사 하강법 (Gradient Descent) 기초 이해
+가장 기본적인 선형 회귀 수식($y=wx+b$)을 코드로 옮겨, 가중치($w$)가 오차($E$)에 의해 어떻게 업데이트되는지 시뮬레이션했습니다.
+
+### 2.1 학습 목표 및 코드
+*   **목표:** 입력 2를 넣었을 때 10이 나오도록 가중치 학습시키기
+*   **설정:** 학습률(learning rate)은 0.01로 설정하여 발산하지 않고 조금씩 수렴하도록 함
+
+![image](https://github.com/user-attachments/assets/2ae6593a-ef91-483a-9b49-056b236cf8d2)
+
+```python
+x = 2
+w = 3
+b = 1
+yT = 10
 lr = 0.01
 
-for epoch in range(2):
-    
+for epoch in range(200):
+    # 순전파 (Forward): y = wx + b
     y = x*w + 1*b
+    
+    # 오차 계산 및 역전파 (Backward)
     E = (y -yT)**2/2
     yE = y-yT
     wE = yE*x
     bE = yE*1
+    
+    # 가중치 업데이트
     w -= lr*wE
     b -= lr*bE
     
-    
-    print(f'epoch = {epoch}')
-    print(f' y : {y: .3f}')
-    print(f' w :{w: .3f}')
-    print(f' b :{b: .3f}')
-    
+    print(f'epoch = {epoch}, y : {y:.3f}, w :{w:.3f}, b :{b:.3f}')
 ```
 
-<img width="460" height="186" alt="image" src="https://github.com/user-attachments/assets/547395ff-f67a-437f-a540-11b098aead0d" />
+### 2.2 학습 과정 확인
+**[초기]** 오차가 커서 정답과 거리가 먼 상태
 
-(2회 학습)
+![image](https://github.com/user-attachments/assets/547395ff-f67a-437f-a540-11b098aead0d)
 
-<img width="178" height="143" alt="image" src="https://github.com/user-attachments/assets/d0016525-fa35-49f6-9937-70620d1cef1b" />
+**[중간]** 100회 반복 시 꽤 근접함
 
-(100회 학습)
+![image](https://github.com/user-attachments/assets/d0016525-fa35-49f6-9937-70620d1cef1b)
 
-<img width="184" height="276" alt="image" src="https://github.com/user-attachments/assets/4329a675-a7df-404c-87b6-5859fc8ed1c4" />
+**[최종]** 200회 반복 결과 가중치가 특정 값($w=4.2$)으로 수렴하는 것을 확인
 
-(200회 학습)
+![image](https://github.com/user-attachments/assets/4329a675-a7df-404c-87b6-5859fc8ed1c4)
 
-200회까지 진행결과 가중치 w가 4.2에  편향치 b가 1.6에 수렴함을 알수있음 y  또한 10에 수렴
+---
 
-```
-x=2
-w=3
-b=1
-yT=10
-lr = 0.01
+## 3. 학습 효율화 (Early Stopping)
+하드웨어 관점에서 불필요한 전력 소모와 연산 시간을 줄이는 것은 중요합니다. 오차가 일정 수준 이하로 떨어지면 학습을 멈추는 기능을 추가해 보았습니다.
 
-for epoch in range(200):
-    
-    y = x*w + 1*b
-    E = (y -yT)**2/2
-    yE = y-yT
-    wE = yE*x
-    bE = yE*1
-    w -= lr*wE
-    b -= lr*bE
-    
-    
-    print(f'epoch = {epoch}')
-    print(f' y : {y: .3f}')
-    print(f' w :{w: .3f}')
-    print(f' b :{b: .3f}')
-    
-    if E < 0.0000001 :
-        break
-```
-if 문을 추가하여 오차값 E가 매우 작아지는 지점에서 학습을 멈추는 기능 추가 
-
-<img width="156" height="270" alt="image" src="https://github.com/user-attachments/assets/0f3a788b-5d33-445a-b420-e2b40b26bf62" />
-
-
-
-
-<img width="1044" height="231" alt="image" src="https://github.com/user-attachments/assets/d4ca486e-b731-4ed0-9d1a-0a59277b37d7" />
-
-순전파와 역전파의 동작 표현
-
-
-
-<img width="658" height="268" alt="image" src="https://github.com/user-attachments/assets/dd965374-7f16-4101-89c1-cca9994c03a4" />
-
-목표값이 27로 변경  x2 추가한 예시
-
-
-```
-x1,x2=2,3
-w1,w2=3,4
-b=1
-yT=27
-lr = 0.01
-
-for epoch in range(200):
-    
-    y = x1*w1 + x2*w2 + 1*b
-    E = (y -yT)**2/2
-    yE = y-yT
-    w1E = yE*x1
-    w2E = yE*x2
-    bE = yE*1
-    w1 -= lr*w1E
-    w2 -= lr*w2E
-    b -= lr*bE
-    
-    
-    print(f'epoch = {epoch}')
-    print(f' y : {y: .3f}')
-    print(f' w1 :{w1: .3f}')
-    print(f' w2 :{w2: .3f}')
-    print(f' b :{b: .3f}')
-    
-    if E < 0.0000001 :
-        break
+```python
+if E < 0.0000001 :
+    break
 ```
 
-실행결과 
+**결과:** 목표 오차에 도달하자 루프가 자동으로 멈춤을 확인했습니다.
 
-<img width="195" height="253" alt="image" src="https://github.com/user-attachments/assets/76b6415d-5a34-481f-894d-466c07113700" />
+![image](https://github.com/user-attachments/assets/0f3a788b-5d33-445a-b420-e2b40b26bf62)
 
-실행결과 65번 에포크에서 학습이 종료됨 
+---
 
-2입력 2출력 인공 신경망 학습
+## 4. 다층 퍼셉트론 구조로 확장 (MIMO)
+실제 딥러닝 모델처럼 입력과 출력이 여러 개인 경우를 구현했습니다. 이 과정에서 **행렬 연산이 왜 필요하고, 하드웨어의 병렬 처리가 왜 중요한지** 이해할 수 있었습니다.
 
-<img width="671" height="276" alt="image" src="https://github.com/user-attachments/assets/b87bc526-e2c8-4537-9189-92ced61be139" />
+### 4.1 데이터 흐름 파악
+입력부터 출력, 다시 역전파로 이어지는 데이터 경로(Data Path)를 도식화했습니다.
 
+![image](https://github.com/user-attachments/assets/d4ca486e-b731-4ed0-9d1a-0a59277b37d7)
 
-```
-x1,x2=2,3
-w1,w2=3,4
-w3,w4=5,6
-b1,b2=1,2
-y1T=27
-y2T=-30
-lr = 0.01
+### 4.2 2입력 1출력 구현
 
-for epoch in range(200):
-    
-    y1 = x1*w1 + x2*w2 + 1*b1
-    y2 = x1*w3 + x2*w4 + 1*b2
-    E = ((y1 -y1T)**2 + (y2-y2T)**2)/2 
-    y1E = y1-y1T
-    y2E = y2-y2T
-    w1E = y1E*x1
-    w2E = y1E*x2
-    w3E = y2E*x1
-    w4E = y2E*x2
-    b1E = y1E*1
-    b2E = y2E*1
-    w1 = w1 - lr*w1E
-    w2 = w2 - lr*w2E
-    w3 = w3 - lr*w3E
-    w4 = w4 - lr*w4E
-    b1 = b1 - lr*b1E
-    b2 = b2 - lr*b2E
-    
-    
-    print(f'epoch = {epoch}')
-    print(f' y1 : {y1: .3f}')
-    print(f' y2 : {y2: .3f}')
-    print(f' w1 :{w1: .3f}')
-    print(f' w2 :{w2: .3f}')
-    print(f' w3 :{w3: .3f}')
-    print(f' w4 :{w4: .3f}')
-    print(f' b1 :{b1: .3f}')
-    print(f' b2 :{b2: .3f}')
-    
-    if E < 0.0000001 :
-        break
-```
-<img width="259" height="309" alt="image" src="https://github.com/user-attachments/assets/72174721-026a-494d-9565-57a9bb99fc23" />
+![image](https://github.com/user-attachments/assets/dd965374-7f16-4101-89c1-cca9994c03a4)
 
-실행결과 에포크 79회에서 수렴함을 알수잇음
+**결과:** 65 epoch 만에 수렴. 입력이 늘어나도 원리는 같음을 확인.
 
+![image](https://github.com/user-attachments/assets/76b6415d-5a34-481f-894d-466c07113700)
 
-연습문제 1
+### 4.3 2입력 2출력 (병렬 연산 구조)
 
-<img width="943" height="515" alt="image" src="https://github.com/user-attachments/assets/63eaf83c-105e-4452-82ed-cdfe17d24d85" />
+![image](https://github.com/user-attachments/assets/b87bc526-e2c8-4537-9189-92ced61be139)
 
-구현해보기
+두 개의 출력을 계산하기 위해 곱셈과 덧셈 연산량이 2배로 늘어났습니다.
 
-```
-x1,x2=0.05,0.10
-w1,w2=0.15,0.20
-w3,w4=0.25,0.30
-w5,w6=0.40,0.55 
-b1,b2,b3=0.35,0.45,0.60
-y1T=0.01
-y2T=0.99
-y3T= 0.50
-lr = 0.01
+**결과:**
 
-for epoch in range(2000):
-    
-    y1 = x1*w1 + x2*w2 + 1*b1
-    y2 = x1*w3 + x2*w4 + 1*b2
-    y3 = x1*w5 + x2*w6 + 1*b3
-    E = ((y1 -y1T)**2 + (y2-y2T)**2 + (y3-y3T)**2)/2 
-    y1E = y1-y1T
-    y2E = y2-y2T
-    y3E = y3-y3T
-    w1E = y1E*x1
-    w2E = y1E*x2
-    w3E = y2E*x1
-    w4E = y2E*x2
-    w5E = y3E*x1
-    w6E = y3E*x2
-    b1E = y1E*1
-    b2E = y2E*1
-    b3E = y3E*1
-    w1 = w1 - lr*w1E
-    w2 = w2 - lr*w2E
-    w3 = w3 - lr*w3E
-    w4 = w4 - lr*w4E
-    w5 = w5 - lr*w5E
-    w6 = w6 - lr*w6E
-    b1 = b1 - lr*b1E
-    b2 = b2 - lr*b2E
-    b3 = b3 - lr*b3E
-    
-    print(f'epoch = {epoch}')
-    print(f' y1 : {y1: .3f}')
-    print(f' y2 : {y2: .3f}')
-    print(f' y3 : {y3: .3f}')
-    print(f' w1 :{w1: .3f}')
-    print(f' w2 :{w2: .3f}')
-    print(f' w3 :{w3: .3f}')
-    print(f' w4 :{w4: .3f}')
-    print(f' w5 :{w5: .3f}')
-    print(f' w6 :{w6: .3f}')
-    print(f' b1 :{b1: .3f}')
-    print(f' b2 :{b2: .3f}')
-    print(f' b3 :{b3: .3f}')
-    
-    if E < 0.0000001 :
-        break
-```
+![image](https://github.com/user-attachments/assets/72174721-026a-494d-9565-57a9bb99fc23)
 
+### 4.4 더 복잡한 구조 실습 (연습문제)
+노드가 늘어날 때마다 코드가 길어지는 것을 보며, 이를 `for`문으로 처리하면 속도가 느려질 것 같다는 생각이 들었습니다.
 
+**[2 Input - 3 Output]**
 
-<img width="288" height="224" alt="image" src="https://github.com/user-attachments/assets/ed7d7b89-0153-4728-9701-b8cf2d62ce48" />
+![image](https://github.com/user-attachments/assets/63eaf83c-105e-4452-82ed-cdfe17d24d85)
+![image](https://github.com/user-attachments/assets/ed7d7b89-0153-4728-9701-b8cf2d62ce48)
 
-에포크 715에서 수렴함
+**[3 Input - 2 Output (Fully Connected)]**
 
+![image](https://github.com/user-attachments/assets/37bf2089-0a5b-4a89-8ad8-5dc58d19b1bc)
+![image](https://github.com/user-attachments/assets/c3166d0e-e1b4-4138-b967-2b3749559646)
 
-연습문제 2
+---
 
-<img width="1008" height="671" alt="image" src="https://github.com/user-attachments/assets/37bf2089-0a5b-4a89-8ad8-5dc58d19b1bc" />
+## 5. 하드웨어 설계 관점에서의 배운 점 (Insights)
 
+이 스터디를 통해 소프트웨어 코드를 하드웨어로 옮길 때 고려해야 할 점들을 정리해보았습니다.
 
+1.  **MAC 연산기(Multiplier-Accumulator)의 필요성**
+    *   코드에서 `y = x1*w1 + x2*w2...` 부분은 곱하고 더하는 연산의 반복이었습니다.
+    *   입출력 노드가 늘어날수록 연산량이 급격히 많아지기 때문에, CPU처럼 순차적으로 처리하는 것보다 **병렬로 동작하는 MAC 어레이**가 필수적이라는 것을 느꼈습니다.
 
+2.  **메모리 설계의 중요성**
+    *   역전파 코드를 짜면서 가장 까다로웠던 점은, 순전파 때 썼던 입력값 $x$를 역전파 때 다시 써야 한다는 점이었습니다.
+    *   하드웨어로 구현할 때도 **중간 계산 결과(Activation)를 버리지 않고 저장해둘 내부 버퍼(SRAM)** 용량을 잘 산정해야 병목 현상이 없을 것 같습니다.
 
-
-```
-x1,x2,x3=0.02,0.05,0.12
-w1,w2=0.15,0.20
-w3,w4=0.02,0.27
-w5,w6 = 0.37,0.52
-b1,b2=0.12,0.39
-y1T=0.02
-y2T=0.98
-lr = 0.01
-
-for epoch in range(2000):
-    
-    y1 = x1*w1 + x2*w2 + x3*w3 + 1*b1
-    y2 = x1*w4 + x2*w5 + x3*w6 + 1*b2
-    E = ((y1 -y1T)**2 + (y2-y2T)**2)/2 
-    y1E = y1-y1T
-    y2E = y2-y2T
-    w1E = y1E*x1
-    w2E = y1E*x2
-    w3E = y1E*x3
-    w4E = y2E*x1
-    w5E = y2E*x2
-    w6E = y2E*x3
-    b1E = y1E*1
-    b2E = y2E*1
-    w1 = w1 - lr*w1E
-    w2 = w2 - lr*w2E
-    w3 = w3 - lr*w3E
-    w4 = w4 - lr*w4E
-    w5 = w5 - lr*w5E
-    w6 = w6 - lr*w6E
-    b1 = b1 - lr*b1E
-    b2 = b2 - lr*b2E
-    
-    
-    print(f'epoch = {epoch}')
-    print(f' y1 : {y1: .3f}')
-    print(f' y2 : {y2: .3f}')
-    print(f' w1 :{w1: .3f}')
-    print(f' w2 :{w2: .3f}')
-    print(f' w3 :{w3: .3f}')
-    print(f' w4 :{w4: .3f}')
-    print(f' w5 :{w5: .3f}')
-    print(f' w6 :{w6: .3f}')
-    print(f' b1 :{b1: .3f}')
-    print(f' b2 :{b2: .3f}')
-    
-    if E < 0.0000001 :
-        break
-```
-
-
-
-
-<img width="183" height="188" alt="image" src="https://github.com/user-attachments/assets/c3166d0e-e1b4-4138-b967-2b3749559646" />
-
-에포크 690번에서 수렴함
-
+3.  **데이터 의존성 (Dependency)**
+    *   $E$(오차)를 구하기 전까지는 가중치 $w$를 업데이트할 수 없었습니다.
+    *   이는 하드웨어 파이프라인 설계 시 **앞 단계가 끝날 때까지 기다려야 하는 상황(Stall)**이 발생할 수 있음을 의미하므로, 이를 최적화하는 스케줄링이 중요하다고 생각했습니다.
+---
